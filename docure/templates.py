@@ -5,25 +5,7 @@ def _today() -> str:
     return date.today().isoformat()
 
 
-def root_self_md(dir_name: str, contents: list[str]) -> str:
-    """Generate the root self.md with usage instructions and conventions."""
-    today = _today()
-    contents_listing = "\n".join(f"- `{c}`" for c in sorted(contents))
-    return f"""---
-type: directory-index
-path: {dir_name}
-created: {today}
-last_updated: {today}
----
-
-# {dir_name}/
-
-Documentation mirror of `{dir_name}/`. This directory maintains a parallel structure to the source code for long-term knowledge, architecture notes, and per-file documentation.
-
-## Directory Structure
-
-{contents_listing}
-
+DEFAULT_INSTRUCTIONS = """\
 ## Conventions
 
 ### self.md Pattern
@@ -65,9 +47,36 @@ last_updated_by: <author>
 
 ### File Size Guidance
 
-- Keep individual files under **100 KB**
-- If a document grows past 100 KB, split it into sub-documents in a subdirectory
-- `self.md` files should be concise — typically 20-50 lines
+- Keep individual files under **100 lines**
+- If a document grows past 100 lines, split it into sub-documents in a subdirectory
+- `self.md` files should be concise — typically 20-50 lines"""
+
+
+def root_self_md(
+    dir_name: str,
+    contents: list[str],
+    custom_instructions: str | None = None,
+) -> str:
+    """Generate the root self.md with usage instructions and conventions."""
+    today = _today()
+    contents_listing = "\n".join(f"- `{c}`" for c in sorted(contents))
+    instructions = custom_instructions if custom_instructions is not None else DEFAULT_INSTRUCTIONS
+    return f"""---
+type: directory-index
+path: {dir_name}
+created: {today}
+last_updated: {today}
+---
+
+# {dir_name}/
+
+Documentation mirror of `{dir_name}/`. This directory maintains a parallel structure to the source code for long-term knowledge, architecture notes, and per-file documentation.
+
+## Directory Structure
+
+{contents_listing}
+
+{instructions}
 """
 
 

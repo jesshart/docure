@@ -3,7 +3,7 @@ from pathlib import Path
 import click
 
 from docure.mirror import build_mirror, plan_mirror
-from docure.utils import find_git_root, list_git_files
+from docure.utils import find_git_root, list_git_files, load_root_self_instructions
 
 
 @click.group(invoke_without_command=True)
@@ -101,6 +101,12 @@ def _format_tree(files: list[tuple[Path, str]], output_root: Path) -> str:
     default=None,
     help="File extensions to include (e.g. .py .js .ts) or 'all'. Defaults to .py only.",
 )
+@click.option(
+    "--root-self-instructions",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=None,
+    help="Path to a markdown file with custom root self.md instructions.",
+)
 def init(
     path: Path,
     output: Path | None,
@@ -108,10 +114,31 @@ def init(
     yes: bool,
     name: str,
     file_types: tuple[str, ...],
+    root_self_instructions: Path | None,
 ):
     """Initialize documentation tree mirroring PATH."""
     # Resolve "." and trailing slashes to the actual directory name
     path = Path(path.resolve())
+
+    # Resolve custom root self.md instructions
+    # Priority: --root-self-instructions flag > pyproject.toml > .docure.toml > default
+    if root_self_instructions is not None:
+        custom_instructions = root_self_instructions.read_text()
+        click.echo(
+            click.style(
+                f"Using custom root instructions from: {root_self_instructions}",
+                fg="cyan",
+            )
+        )
+    else:
+        custom_instructions = load_root_self_instructions(path)
+        if custom_instructions is not None:
+            click.echo(
+                click.style(
+                    "Using custom root instructions from config.",
+                    fg="cyan",
+                )
+            )
 
     # Resolve file types — default to .py with a warning
     if not file_types:
@@ -158,7 +185,7 @@ def init(
         )
 
     # Plan the mirror to show preview
-    planned = plan_mirror(path, resolved_output, file_types=ft_list, git_files=git_files)
+    planned = plan_mirror(path, resolved_output, file_types=ft_list, git_files=git_files, custom_instructions=custom_instructions)
 
     if not planned:
         click.echo("No matching files found to document.")
@@ -210,7 +237,7 @@ def init(
         return
 
     # Execute: default is skip existing (step_over=True), --force overwrites (step_over=False)
-    result = build_mirror(path, resolved_output, step_over=not force, file_types=ft_list, git_files=git_files)
+    result = build_mirror(path, resolved_output, step_over=not force, file_types=ft_list, git_files=git_files, custom_instructions=custom_instructions)
 
     # Report results
     click.echo()

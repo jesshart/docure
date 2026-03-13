@@ -473,3 +473,97 @@ def test_cli_init_file_types_all_respects_gitignore(tmp_path: Path):
     assert (output / "src" / "app.md").exists()
     assert (output / "src" / "index.md").exists()
     assert not (output / "src" / "compiled.md").exists()
+
+
+def test_cli_init_root_self_instructions_flag(tmp_path: Path):
+    """--root-self-instructions overrides the default conventions."""
+    src = _make_src(tmp_path)
+    output = tmp_path / "docs"
+
+    instructions = tmp_path / "my_instructions.md"
+    instructions.write_text("## Our Custom Conventions\n\nDo it our way.\n")
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "init", str(src), "-o", str(output),
+            "--root-self-instructions", str(instructions), "-y",
+        ],
+    )
+
+    assert result.exit_code == 0
+    root_self = (output / "src" / "self.md").read_text()
+    assert "Our Custom Conventions" in root_self
+    assert "Do it our way" in root_self
+    assert "self.md Pattern" not in root_self  # default conventions replaced
+
+
+def test_cli_init_root_self_instructions_from_pyproject(tmp_path: Path):
+    """Reads root_self_instructions from pyproject.toml [tool.docure]."""
+    _git_init(tmp_path)
+    src = _make_src(tmp_path)
+
+    # Write custom instructions file
+    docure_dir = tmp_path / ".docure"
+    docure_dir.mkdir()
+    (docure_dir / "root_self.md").write_text("## Team Rules\n\nFollow these.\n")
+
+    # Add config to pyproject.toml
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.docure]\nroot_self_instructions = ".docure/root_self.md"\n'
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["init", str(src), "-y"])
+
+    assert result.exit_code == 0
+    assert "Using custom root instructions from config" in result.output
+    root_self = (tmp_path / "thoughts" / "src" / "self.md").read_text()
+    assert "Team Rules" in root_self
+    assert "self.md Pattern" not in root_self
+
+
+def test_cli_init_root_self_instructions_from_docure_toml(tmp_path: Path):
+    """Reads root_self_instructions from .docure.toml."""
+    _git_init(tmp_path)
+    src = _make_src(tmp_path)
+
+    (tmp_path / "custom.md").write_text("## From docure.toml\n\nCustom stuff.\n")
+    (tmp_path / ".docure.toml").write_text(
+        'root_self_instructions = "custom.md"\n'
+    )
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["init", str(src), "-y"])
+
+    assert result.exit_code == 0
+    root_self = (tmp_path / "thoughts" / "src" / "self.md").read_text()
+    assert "From docure.toml" in root_self
+
+
+def test_cli_init_flag_overrides_config(tmp_path: Path):
+    """--root-self-instructions flag takes priority over config files."""
+    _git_init(tmp_path)
+    src = _make_src(tmp_path)
+
+    # Config points to one file
+    (tmp_path / "from_config.md").write_text("## From Config\n")
+    (tmp_path / ".docure.toml").write_text(
+        'root_self_instructions = "from_config.md"\n'
+    )
+
+    # Flag points to another
+    flag_file = tmp_path / "from_flag.md"
+    flag_file.write_text("## From Flag\n")
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["init", str(src), "--root-self-instructions", str(flag_file), "-y"],
+    )
+
+    assert result.exit_code == 0
+    root_self = (tmp_path / "thoughts" / "src" / "self.md").read_text()
+    assert "From Flag" in root_self
+    assert "From Config" not in root_self

@@ -1,7 +1,7 @@
 import subprocess
 from pathlib import Path
 
-from docure.utils import find_git_root, list_git_files
+from docure.utils import find_git_root, list_git_files, load_root_self_instructions
 
 
 def test_find_git_root_in_repo(tmp_git_repo: Path):
@@ -64,3 +64,39 @@ def test_list_git_files_outside_repo(tmp_path: Path):
     result = list_git_files(isolated)
     # May return None or files if tmp_path is inside a git repo
     assert result is None or isinstance(result, set)
+
+
+def test_load_instructions_from_pyproject(tmp_path: Path):
+    (tmp_path / "instructions.md").write_text("## Custom\n")
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.docure]\nroot_self_instructions = "instructions.md"\n'
+    )
+    result = load_root_self_instructions(tmp_path)
+    assert result == "## Custom\n"
+
+
+def test_load_instructions_from_docure_toml(tmp_path: Path):
+    (tmp_path / "instructions.md").write_text("## From toml\n")
+    (tmp_path / ".docure.toml").write_text(
+        'root_self_instructions = "instructions.md"\n'
+    )
+    result = load_root_self_instructions(tmp_path)
+    assert result == "## From toml\n"
+
+
+def test_load_instructions_pyproject_takes_priority(tmp_path: Path):
+    (tmp_path / "from_pyproject.md").write_text("pyproject wins\n")
+    (tmp_path / "from_docure.md").write_text("docure loses\n")
+    (tmp_path / "pyproject.toml").write_text(
+        '[tool.docure]\nroot_self_instructions = "from_pyproject.md"\n'
+    )
+    (tmp_path / ".docure.toml").write_text(
+        'root_self_instructions = "from_docure.md"\n'
+    )
+    result = load_root_self_instructions(tmp_path)
+    assert result == "pyproject wins\n"
+
+
+def test_load_instructions_returns_none_without_config(tmp_path: Path):
+    result = load_root_self_instructions(tmp_path)
+    assert result is None

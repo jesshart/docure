@@ -23,6 +23,7 @@ def plan_mirror(
     output_root: Path,
     file_types: list[str] | None = None,
     git_files: set[Path] | None = None,
+    custom_instructions: str | None = None,
 ) -> list[tuple[Path, str]]:
     """Plan the mirror tree without writing anything.
 
@@ -34,6 +35,8 @@ def plan_mirror(
         git_files: Set of absolute paths from git ls-files. When provided,
             only files in this set are included (respects .gitignore).
             When None, all files on disk are considered.
+        custom_instructions: Custom markdown to use in the root self.md
+            instead of the built-in conventions.
 
     Returns a list of (output_path, content) tuples.
     """
@@ -80,7 +83,7 @@ def plan_mirror(
         # Generate self.md
         is_root = dir_path == src
         if is_root:
-            content = root_self_md(src.name, contents)
+            content = root_self_md(src.name, contents, custom_instructions=custom_instructions)
         else:
             content = directory_self_md(dir_path.name, contents)
         planned.append((out_dir / "self.md", content))
@@ -98,6 +101,7 @@ def build_mirror(
     step_over: bool,
     file_types: list[str] | None = None,
     git_files: set[Path] | None = None,
+    custom_instructions: str | None = None,
 ) -> MirrorResult:
     """Build the mirror documentation tree.
 
@@ -107,12 +111,16 @@ def build_mirror(
         step_over: If True, skip existing files. If False, overwrite them.
         file_types: List of file extensions or ["all"]. Defaults to [".py"].
         git_files: Set of git-tracked file paths (respects .gitignore).
+        custom_instructions: Custom markdown for root self.md conventions.
 
     Returns:
         MirrorResult with lists of created, skipped, and existing files.
     """
     result = MirrorResult()
-    planned = plan_mirror(src, output_root, file_types=file_types, git_files=git_files)
+    planned = plan_mirror(
+        src, output_root, file_types=file_types, git_files=git_files,
+        custom_instructions=custom_instructions,
+    )
 
     for out_path, content in planned:
         if out_path.exists():
