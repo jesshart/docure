@@ -164,7 +164,7 @@ def test_cli_init_dot_path(tmp_path: Path):
     assert (output / dir_name / "self.md").exists()
     content = (output / dir_name / "self.md").read_text()
     assert dir_name in content
-    assert content.startswith(f"# {dir_name}/")  # Should use actual dir name, not "."
+    assert f"# {dir_name}/" in content  # Should use actual dir name, not "."
 
 
 def test_cli_init_ignores_pycache(tmp_path: Path):

@@ -46,10 +46,12 @@ def test_build_mirror_creates_self_md_for_directories(
     build_mirror(tmp_src, output, step_over=False)
 
     root_self = (output / "self.md").read_text()
-    assert "Documentation Root" in root_self
-    assert "How to Use" in root_self
+    assert "type: directory-index" in root_self
+    assert "self.md Pattern" in root_self
+    assert "Frontmatter Standard" in root_self
 
     modules_self = (output / "modules" / "self.md").read_text()
+    assert "type: directory-index" in modules_self
     assert "modules" in modules_self
 
 
@@ -87,7 +89,9 @@ def test_build_mirror_skips_existing_with_step_over(
 
 def test_root_self_md_contains_instructions():
     content = root_self_md("src", ["app.py", "modules/"])
-    assert "Documentation Root" in content
-    assert "How to Use This Documentation" in content
+    assert "type: directory-index" in content
+    assert "self.md Pattern" in content
+    assert "Frontmatter Standard" in content
+    assert "File Size Guidance" in content
     assert "`app.py`" in content
     assert "`modules/`" in content
