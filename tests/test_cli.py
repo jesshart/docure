@@ -258,3 +258,43 @@ def test_cli_init_default_name_is_thoughts(tmp_path: Path):
 
     assert result.exit_code == 0
     assert (tmp_path / "thoughts" / "src" / "self.md").exists()
+
+
+def test_cli_init_git_root_no_extra_nesting(tmp_path: Path):
+    """When path is the git root, write directly to thoughts/ without nesting."""
+    _git_init(tmp_path)
+    (tmp_path / "app.py").write_text("# app\n")
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["init", str(tmp_path), "-y"])
+
+    assert result.exit_code == 0
+    # Should be thoughts/self.md, NOT thoughts/<dirname>/self.md
+    assert (tmp_path / "thoughts" / "self.md").exists()
+    assert (tmp_path / "thoughts" / "app.md").exists()
+
+
+def test_cli_init_monorepo(tmp_path: Path):
+    """Monorepo: docure init . mirrors all services without extra wrapper."""
+    _git_init(tmp_path)
+    # service_a
+    svc_a = tmp_path / "service_a" / "src"
+    svc_a.mkdir(parents=True)
+    (svc_a / "app.py").write_text("# app\n")
+    # service_b
+    svc_b = tmp_path / "service_b" / "src"
+    svc_b.mkdir(parents=True)
+    (svc_b / "main.py").write_text("# main\n")
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["init", str(tmp_path), "-y"])
+
+    assert result.exit_code == 0
+    thoughts = tmp_path / "thoughts"
+    assert (thoughts / "self.md").exists()
+    assert (thoughts / "service_a" / "self.md").exists()
+    assert (thoughts / "service_a" / "src" / "self.md").exists()
+    assert (thoughts / "service_a" / "src" / "app.md").exists()
+    assert (thoughts / "service_b" / "self.md").exists()
+    assert (thoughts / "service_b" / "src" / "self.md").exists()
+    assert (thoughts / "service_b" / "src" / "main.md").exists()

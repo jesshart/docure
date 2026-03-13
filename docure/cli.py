@@ -21,7 +21,8 @@ def _resolve_output(
     if output is not None:
         return output / path.name
 
-    git_root = find_git_root(path.resolve())
+    resolved_path = path.resolve()
+    git_root = find_git_root(resolved_path)
     if git_root:
         base = git_root / name
         click.echo("Output directory not specified.")
@@ -31,7 +32,13 @@ def _resolve_output(
         click.echo("Output directory not specified.")
         click.echo(f"  → No git root detected, using CWD")
 
-    resolved = base / path.name
+    # If path is the root itself, write directly to base (no extra nesting)
+    if git_root and resolved_path == git_root:
+        resolved = base
+    elif not git_root and resolved_path == Path.cwd():
+        resolved = base
+    else:
+        resolved = base / path.name
     click.echo(f"  → Will write to: {click.style(str(resolved), bold=True)}")
     click.echo()
 
