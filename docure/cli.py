@@ -3,7 +3,7 @@ from pathlib import Path
 import click
 
 from docure.mirror import build_mirror, plan_mirror
-from docure.utils import find_git_root
+from docure.utils import find_git_root, list_git_files
 
 
 @click.group(invoke_without_command=True)
@@ -146,8 +146,19 @@ def init(
     if resolved_output is None:
         raise SystemExit(1)
 
+    # Get git-tracked files to respect .gitignore
+    git_files = list_git_files(path)
+    if git_files is not None:
+        click.echo(
+            click.style("Respecting .gitignore (git repo detected).", fg="cyan")
+        )
+    else:
+        click.echo(
+            click.style("No git repo detected — all files on disk will be considered.", fg="cyan")
+        )
+
     # Plan the mirror to show preview
-    planned = plan_mirror(path, resolved_output, file_types=ft_list)
+    planned = plan_mirror(path, resolved_output, file_types=ft_list, git_files=git_files)
 
     if not planned:
         click.echo("No matching files found to document.")
@@ -199,7 +210,7 @@ def init(
         return
 
     # Execute: default is skip existing (step_over=True), --force overwrites (step_over=False)
-    result = build_mirror(path, resolved_output, step_over=not force, file_types=ft_list)
+    result = build_mirror(path, resolved_output, step_over=not force, file_types=ft_list, git_files=git_files)
 
     # Report results
     click.echo()

@@ -391,3 +391,85 @@ def test_cli_init_file_types_no_prompt_when_specified(tmp_path: Path):
 
     assert result.exit_code == 0
     assert "Defaulting to .py" not in result.output
+
+
+def test_cli_init_respects_gitignore(tmp_path: Path):
+    """Files in .gitignore should be excluded from the mirror."""
+    _git_init(tmp_path)
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "app.py").write_text("# app\n")
+    (src / "secret.py").write_text("# secret\n")
+
+    # Add .gitignore to ignore secret.py
+    (tmp_path / ".gitignore").write_text("src/secret.py\n")
+
+    # Track app.py but not secret.py
+    subprocess.run(["git", "add", "src/app.py", ".gitignore"], cwd=tmp_path, capture_output=True)
+
+    output = tmp_path / "docs"
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["init", str(src), "-o", str(output), "--file-types", ".py", "-y"],
+    )
+
+    assert result.exit_code == 0
+    assert (output / "src" / "app.md").exists()
+    assert not (output / "src" / "secret.md").exists()
+
+
+def test_cli_init_gitignore_excludes_directories(tmp_path: Path):
+    """Directories matching .gitignore patterns should be skipped entirely."""
+    _git_init(tmp_path)
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "app.py").write_text("# app\n")
+
+    # Create a build directory that should be ignored
+    build = src / "build"
+    build.mkdir()
+    (build / "output.py").write_text("# build output\n")
+
+    (tmp_path / ".gitignore").write_text("src/build/\n")
+    subprocess.run(["git", "add", "src/app.py", ".gitignore"], cwd=tmp_path, capture_output=True)
+
+    output = tmp_path / "docs"
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["init", str(src), "-o", str(output), "--file-types", ".py", "-y"],
+    )
+
+    assert result.exit_code == 0
+    assert (output / "src" / "app.md").exists()
+    assert not (output / "src" / "build").exists()
+
+
+def test_cli_init_file_types_all_respects_gitignore(tmp_path: Path):
+    """--file-types all still respects .gitignore."""
+    _git_init(tmp_path)
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "app.py").write_text("# app\n")
+    (src / "index.js").write_text("// js\n")
+    (src / "compiled.min.js").write_text("// minified\n")
+
+    (tmp_path / ".gitignore").write_text("*.min.js\n")
+    subprocess.run(
+        ["git", "add", "src/app.py", "src/index.js", ".gitignore"],
+        cwd=tmp_path,
+        capture_output=True,
+    )
+
+    output = tmp_path / "docs"
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["init", str(src), "-o", str(output), "--file-types", "all", "-y"],
+    )
+
+    assert result.exit_code == 0
+    assert (output / "src" / "app.md").exists()
+    assert (output / "src" / "index.md").exists()
+    assert not (output / "src" / "compiled.md").exists()

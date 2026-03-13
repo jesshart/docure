@@ -22,6 +22,7 @@ def plan_mirror(
     src: Path,
     output_root: Path,
     file_types: list[str] | None = None,
+    git_files: set[Path] | None = None,
 ) -> list[tuple[Path, str]]:
     """Plan the mirror tree without writing anything.
 
@@ -30,6 +31,9 @@ def plan_mirror(
         output_root: Root of the output documentation tree.
         file_types: List of file extensions (e.g. [".py", ".js"]) or ["all"].
             Defaults to [".py"].
+        git_files: Set of absolute paths from git ls-files. When provided,
+            only files in this set are included (respects .gitignore).
+            When None, all files on disk are considered.
 
     Returns a list of (output_path, content) tuples.
     """
@@ -38,21 +42,39 @@ def plan_mirror(
 
     planned: list[tuple[Path, str]] = []
 
-    def _skip(name: str) -> bool:
+    def _skip_dir(name: str) -> bool:
         return name.startswith((".", "__"))
+
+    def _include_file(dir_path: Path, filename: str) -> bool:
+        if not _matches_file_types(filename, file_types):
+            return False
+        if git_files is not None:
+            return (dir_path / filename).resolve() in git_files
+        return True
+
+    def _has_git_files_in_dir(dir_path: Path) -> bool:
+        """Check if a directory has any git-tracked files under it."""
+        if git_files is None:
+            return True
+        dir_resolved = dir_path.resolve()
+        return any(str(f).startswith(str(dir_resolved)) for f in git_files)
 
     for dir_path, dirnames, filenames in src.walk():
         # Skip __pycache__ and hidden directories
-        dirnames[:] = sorted(d for d in dirnames if not _skip(d))
+        dirnames[:] = sorted(d for d in dirnames if not _skip_dir(d))
+
+        # When using git files, also skip directories with no tracked content
+        if git_files is not None:
+            dirnames[:] = [d for d in dirnames if _has_git_files_in_dir(dir_path / d)]
 
         rel = dir_path.relative_to(src)
         out_dir = output_root / rel
 
         # Collect matching files
         matched_files = sorted(
-            f for f in filenames if _matches_file_types(f, file_types)
+            f for f in filenames if _include_file(dir_path, f)
         )
-        subdirs = dirnames  # already sorted above
+        subdirs = dirnames  # already sorted/filtered above
         contents = [f"{d}/" for d in subdirs] + matched_files
 
         # Generate self.md
@@ -75,6 +97,7 @@ def build_mirror(
     output_root: Path,
     step_over: bool,
     file_types: list[str] | None = None,
+    git_files: set[Path] | None = None,
 ) -> MirrorResult:
     """Build the mirror documentation tree.
 
@@ -83,12 +106,13 @@ def build_mirror(
         output_root: Root of the output documentation tree.
         step_over: If True, skip existing files. If False, overwrite them.
         file_types: List of file extensions or ["all"]. Defaults to [".py"].
+        git_files: Set of git-tracked file paths (respects .gitignore).
 
     Returns:
         MirrorResult with lists of created, skipped, and existing files.
     """
     result = MirrorResult()
-    planned = plan_mirror(src, output_root, file_types=file_types)
+    planned = plan_mirror(src, output_root, file_types=file_types, git_files=git_files)
 
     for out_path, content in planned:
         if out_path.exists():
