@@ -100,8 +100,8 @@ def test_cli_init_prompts_for_default_output(tmp_path: Path):
     src = _make_src(tmp_path)
 
     runner = CliRunner()
-    # Send "n" to decline the default output prompt
-    result = runner.invoke(cli, ["init", str(src)], input="n\n")
+    # "y" to accept file-types default, "n" to decline output path
+    result = runner.invoke(cli, ["init", str(src)], input="y\nn\n")
 
     assert "Output directory not specified" in result.output
     assert "Continue with this output path?" in result.output
@@ -112,7 +112,8 @@ def test_cli_init_aborts_on_no(tmp_path: Path):
     src = _make_src(tmp_path)
 
     runner = CliRunner()
-    result = runner.invoke(cli, ["init", str(src)], input="n\n")
+    # "y" to accept file-types default, "n" to decline output path
+    result = runner.invoke(cli, ["init", str(src)], input="y\nn\n")
 
     assert result.exit_code != 0
     assert "Aborted" in result.output
@@ -139,9 +140,9 @@ def test_cli_init_force_prompts_for_overwrite(tmp_path: Path):
     runner = CliRunner()
     # First run
     runner.invoke(cli, ["init", str(src), "-o", str(output), "-y"])
-    # Second run with --force — decline overwrite
+    # Second run with --force — "y" for file-types, "n" to decline overwrite
     result = runner.invoke(
-        cli, ["init", str(src), "-o", str(output), "--force"], input="n\n"
+        cli, ["init", str(src), "-o", str(output), "--force"], input="y\nn\n"
     )
 
     assert "already exist" in result.output
@@ -298,3 +299,95 @@ def test_cli_init_monorepo(tmp_path: Path):
     assert (thoughts / "service_b" / "self.md").exists()
     assert (thoughts / "service_b" / "src" / "self.md").exists()
     assert (thoughts / "service_b" / "src" / "main.md").exists()
+
+
+def test_cli_init_file_types_default_warns(tmp_path: Path):
+    """No --file-types warns about defaulting to .py and prompts."""
+    _git_init(tmp_path)
+    src = _make_src(tmp_path)
+
+    runner = CliRunner()
+    # Decline the file-types prompt
+    result = runner.invoke(cli, ["init", str(src)], input="n\n")
+
+    assert "Defaulting to .py files only" in result.output
+    assert "Continue with .py files only?" in result.output
+    assert result.exit_code != 0
+
+
+def test_cli_init_file_types_specific(tmp_path: Path):
+    """--file-types .js only includes .js files."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "app.py").write_text("# py\n")
+    (src / "index.js").write_text("// js\n")
+    (src / "style.css").write_text("/* css */\n")
+    output = tmp_path / "docs"
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["init", str(src), "-o", str(output), "--file-types", ".js", "-y"],
+    )
+
+    assert result.exit_code == 0
+    assert (output / "src" / "index.md").exists()
+    assert not (output / "src" / "app.md").exists()
+    assert not (output / "src" / "style.md").exists()
+
+
+def test_cli_init_file_types_multiple(tmp_path: Path):
+    """--file-types .py .js includes both."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "app.py").write_text("# py\n")
+    (src / "index.js").write_text("// js\n")
+    (src / "style.css").write_text("/* css */\n")
+    output = tmp_path / "docs"
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["init", str(src), "-o", str(output), "--file-types", ".py", "--file-types", ".js", "-y"],
+    )
+
+    assert result.exit_code == 0
+    assert (output / "src" / "app.md").exists()
+    assert (output / "src" / "index.md").exists()
+    assert not (output / "src" / "style.md").exists()
+
+
+def test_cli_init_file_types_all(tmp_path: Path):
+    """--file-types all includes every file."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "app.py").write_text("# py\n")
+    (src / "index.js").write_text("// js\n")
+    (src / "style.css").write_text("/* css */\n")
+    output = tmp_path / "docs"
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["init", str(src), "-o", str(output), "--file-types", "all", "-y"],
+    )
+
+    assert result.exit_code == 0
+    assert (output / "src" / "app.md").exists()
+    assert (output / "src" / "index.md").exists()
+    assert (output / "src" / "style.md").exists()
+
+
+def test_cli_init_file_types_no_prompt_when_specified(tmp_path: Path):
+    """When --file-types is specified, no default warning prompt."""
+    src = _make_src(tmp_path)
+    output = tmp_path / "docs"
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["init", str(src), "-o", str(output), "--file-types", ".py", "-y"],
+    )
+
+    assert result.exit_code == 0
+    assert "Defaulting to .py" not in result.output

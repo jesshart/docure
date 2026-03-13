@@ -11,11 +11,31 @@ class MirrorResult:
     existing: list[Path] = field(default_factory=list)
 
 
-def plan_mirror(src: Path, output_root: Path) -> list[tuple[Path, str]]:
+def _matches_file_types(filename: str, file_types: list[str]) -> bool:
+    """Check if a filename matches the given file type extensions."""
+    if "all" in file_types:
+        return True
+    return any(filename.endswith(ext) for ext in file_types)
+
+
+def plan_mirror(
+    src: Path,
+    output_root: Path,
+    file_types: list[str] | None = None,
+) -> list[tuple[Path, str]]:
     """Plan the mirror tree without writing anything.
+
+    Args:
+        src: Source directory to mirror.
+        output_root: Root of the output documentation tree.
+        file_types: List of file extensions (e.g. [".py", ".js"]) or ["all"].
+            Defaults to [".py"].
 
     Returns a list of (output_path, content) tuples.
     """
+    if file_types is None:
+        file_types = [".py"]
+
     planned: list[tuple[Path, str]] = []
 
     def _skip(name: str) -> bool:
@@ -28,10 +48,12 @@ def plan_mirror(src: Path, output_root: Path) -> list[tuple[Path, str]]:
         rel = dir_path.relative_to(src)
         out_dir = output_root / rel
 
-        # Collect contents for this directory's self.md
-        py_files = sorted(f for f in filenames if f.endswith(".py"))
+        # Collect matching files
+        matched_files = sorted(
+            f for f in filenames if _matches_file_types(f, file_types)
+        )
         subdirs = dirnames  # already sorted above
-        contents = [f"{d}/" for d in subdirs] + py_files
+        contents = [f"{d}/" for d in subdirs] + matched_files
 
         # Generate self.md
         is_root = dir_path == src
@@ -42,14 +64,17 @@ def plan_mirror(src: Path, output_root: Path) -> list[tuple[Path, str]]:
         planned.append((out_dir / "self.md", content))
 
         # Generate file .md stubs
-        for f in py_files:
+        for f in matched_files:
             planned.append((out_dir / f"{Path(f).stem}.md", file_md(f)))
 
     return planned
 
 
 def build_mirror(
-    src: Path, output_root: Path, step_over: bool
+    src: Path,
+    output_root: Path,
+    step_over: bool,
+    file_types: list[str] | None = None,
 ) -> MirrorResult:
     """Build the mirror documentation tree.
 
@@ -57,12 +82,13 @@ def build_mirror(
         src: Source directory to mirror.
         output_root: Root of the output documentation tree.
         step_over: If True, skip existing files. If False, overwrite them.
+        file_types: List of file extensions or ["all"]. Defaults to [".py"].
 
     Returns:
         MirrorResult with lists of created, skipped, and existing files.
     """
     result = MirrorResult()
-    planned = plan_mirror(src, output_root)
+    planned = plan_mirror(src, output_root, file_types=file_types)
 
     for out_path, content in planned:
         if out_path.exists():

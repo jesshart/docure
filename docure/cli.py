@@ -95,19 +95,62 @@ def _format_tree(files: list[tuple[Path, str]], output_root: Path) -> str:
     show_default=True,
     help="Name of the root documentation directory.",
 )
-def init(path: Path, output: Path | None, force: bool, yes: bool, name: str):
+@click.option(
+    "--file-types",
+    multiple=True,
+    default=None,
+    help="File extensions to include (e.g. .py .js .ts) or 'all'. Defaults to .py only.",
+)
+def init(
+    path: Path,
+    output: Path | None,
+    force: bool,
+    yes: bool,
+    name: str,
+    file_types: tuple[str, ...],
+):
     """Initialize documentation tree mirroring PATH."""
     # Resolve "." and trailing slashes to the actual directory name
     path = Path(path.resolve())
+
+    # Resolve file types — default to .py with a warning
+    if not file_types:
+        ft_list = [".py"]
+        click.echo(
+            click.style(
+                "No --file-types specified. Defaulting to .py files only.",
+                fg="yellow",
+            )
+        )
+        click.echo(
+            click.style(
+                "  Use --file-types to include other extensions (e.g. --file-types .py .js .ts)",
+                fg="yellow",
+            )
+        )
+        click.echo(
+            click.style(
+                "  Use --file-types all to include all files.",
+                fg="yellow",
+            )
+        )
+        click.echo()
+        if not yes:
+            if not click.confirm("Continue with .py files only?", default=False):
+                click.echo("Aborted.")
+                raise SystemExit(1)
+    else:
+        ft_list = list(file_types)
+
     resolved_output = _resolve_output(path, output, name, yes)
     if resolved_output is None:
         raise SystemExit(1)
 
     # Plan the mirror to show preview
-    planned = plan_mirror(path, resolved_output)
+    planned = plan_mirror(path, resolved_output, file_types=ft_list)
 
     if not planned:
-        click.echo("No Python files found to document.")
+        click.echo("No matching files found to document.")
         return
 
     # Check for existing files
@@ -156,7 +199,7 @@ def init(path: Path, output: Path | None, force: bool, yes: bool, name: str):
         return
 
     # Execute: default is skip existing (step_over=True), --force overwrites (step_over=False)
-    result = build_mirror(path, resolved_output, step_over=not force)
+    result = build_mirror(path, resolved_output, step_over=not force, file_types=ft_list)
 
     # Report results
     click.echo()
