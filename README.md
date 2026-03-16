@@ -6,20 +6,46 @@ docure walks a source directory and creates a parallel structure of markdown fil
 
 ## Quickstart
 
+Given a project like this:
+
+```
+.
+├── app/
+│   └── src/
+│       ├── app.py
+│       └── modules/
+│           ├── module_a.py
+│           └── module_b.py
+└── pyproject.toml
+```
+
+Run:
+
 ```bash
-uvx --from "git+https://github.com/jesshart/docure" docure init src
+uvx --from "git+https://github.com/jesshart/docure" docure init app
 ```
 
-This produces:
+And docure produces a parallel documentation tree:
 
 ```
-thoughts/
-└── src/
-    ├── self.md
-    └── modules/
-        ├── self.md
-        ├── module_a.md
-        └── module_b.md
+.
+├── app/
+│   └── src/
+│       ├── app.py
+│       └── modules/
+│           ├── module_a.py
+│           └── module_b.py
+├── thoughts/
+│   └── app/
+│       ├── self.md
+│       └── src/
+│           ├── self.md
+│           ├── app.md
+│           └── modules/
+│               ├── self.md
+│               ├── module_a.md
+│               └── module_b.md
+└── pyproject.toml
 ```
 
 ## Install
